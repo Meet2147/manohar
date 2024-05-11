@@ -1,0 +1,6 @@
+pywhatkit
+fastapi
+datetime
+SQLAlchemy
+uvicorn
+pydantic
