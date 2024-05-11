@@ -10,7 +10,9 @@ import time
 from datetime import datetime
 from datetime import datetime, timedelta
 import time
+import os
 
+os.environ['DISPLAY'] = ':0'
 # Create FastAPI instance
 app = FastAPI()
 
