@@ -4,3 +4,4 @@ datetime
 SQLAlchemy
 uvicorn
 pydantic
+jsonschema
