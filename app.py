@@ -5,14 +5,8 @@ from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-import pywhatkit
-import time
-from datetime import datetime
 from datetime import datetime, timedelta
-import time
-import os
 
-os.environ['DISPLAY'] = ':0'
 # Create FastAPI instance
 app = FastAPI()
 
@@ -45,15 +39,6 @@ class UserData(BaseModel):
     email: str
     locality: str
     classification: str = None
-
-# Function to send WhatsApp message after 1 minute
-def send_whatsapp_message(phone_number, message):
-    current_time = datetime.now()
-    send_time = current_time + timedelta(minutes=2)
-    hour = send_time.hour
-    minute = send_time.minute
-    # time.sleep(60)
-    pywhatkit.sendwhatmsg(phone_number, message, hour, minute)
 
 # Endpoint to submit user data
 @app.post("/submit_user_data/")
@@ -93,16 +78,6 @@ async def classify_users(user_id: int = Form(...), classification: str = Form(..
     user.classification = classification.upper()
     db.commit()
     return {"message": "User classification updated successfully!"}
-
-# Endpoint to send WhatsApp messages
-@app.post("/send_whatsapp_message/")
-async def send_whatsapp_message_endpoint():
-    db = SessionLocal()
-    users = db.query(User).filter(User.whatsapp_number != None).all()
-    for user in users:
-        message = f"Hello {user.name}, thank you for being our customer! We have classified you as Class {user.classification}."
-        send_whatsapp_message(user.whatsapp_number, message)
-    return RedirectResponse(url="/", status_code=303)
 
 # Home page with GUI
 @app.get("/", response_class=HTMLResponse)
@@ -181,41 +156,10 @@ async def home():
                     <input type="submit" value="Classify">
                 </form>
             </div>
-            <div id="send-whatsapp-container" style="display: none;">
-                <form action="/send_whatsapp_message/" method="post">
-                    <input type="submit" value="Send WhatsApp Messages">
-                </form>
+            <div id="send-whatsapp-container">
+                <p>Send WhatsApp Messages functionality disabled.</p>
             </div>
         </div>
-        <script>
-            const userForm = document.getElementById('user-form');
-            const classificationContainer = document.getElementById('classification-container');
-            const classificationForm = document.getElementById('classification-form');
-            const userIdInput = document.getElementById('user_id');
-
-            userForm.addEventListener('submit', async (event) => {
-                event.preventDefault();
-                const formData = new FormData(event.target);
-                const response = await fetch('/submit_user_data/', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-                userIdInput.value = data.user_id;
-                classificationContainer.style.display = 'block';
-            });
-
-            classificationForm.addEventListener('submit', async (event) => {
-                event.preventDefault();
-                const formData = new FormData(event.target);
-                await fetch('/classify_users/', {
-                    method: 'POST',
-                    body: formData
-                });
-                const sendWhatsAppContainer = document.getElementById('send-whatsapp-container');
-                sendWhatsAppContainer.style.display = 'block';
-            });
-        </script>
     </body>
     </html>
     """
