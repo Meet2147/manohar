@@ -1,4 +1,3 @@
-pywhatkit
 fastapi
 datetime
 SQLAlchemy
