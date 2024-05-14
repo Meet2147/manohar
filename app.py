@@ -155,10 +155,6 @@ async def home():
                     <input type="text" id="classification" name="classification" required><br>
                     <input type="submit" value="Classify">
                 </form>
-            </div>
-            <div id="send-whatsapp-container">
-                <p>Send WhatsApp Messages functionality disabled.</p>
-            </div>
         </div>
     </body>
     </html>
