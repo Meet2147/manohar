@@ -4,12 +4,13 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 from datetime import datetime
 import gspread
+import pytz
 
 app = FastAPI()
 
 # Get current date and time
 def get_current_datetime():
-    current_datetime = datetime.now()
+    current_datetime = datetime.now(pytz.timezone('Asia/Kolkata'))  # Convert server time to IST
     current_date = current_datetime.date()
     current_time = current_datetime.strftime("%I:%M %p")
     return current_date, current_time
