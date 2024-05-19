@@ -1,6 +1,7 @@
 fastapi
 datetime
-SQLAlchemy
 uvicorn
 pydantic
-jsonschema
+oauth2client
+gspread
+pandas
