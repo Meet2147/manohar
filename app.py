@@ -1,165 +1,189 @@
-from fastapi import FastAPI, HTTPException, Request, Form, Response
+from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from jsonschema import ValidationError
-from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from datetime import datetime, timedelta
+from oauth2client.service_account import ServiceAccountCredentials
+import pandas as pd
+from datetime import datetime
+import gspread
 
-# Create FastAPI instance
 app = FastAPI()
 
-# Database configuration
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test2.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+# Get current date and time
+def get_current_datetime():
+    current_datetime = datetime.now()
+    current_date = current_datetime.date()
+    current_time = current_datetime.strftime("%I:%M %p")
+    return current_date, current_time
 
-# Define User model
-class User(Base):
-    __tablename__ = "users"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
-    mobile_number = Column(String, index=True)
-    whatsapp_number = Column(String, index=True)
-    email = Column(String, index=True)
-    locality = Column(String, index=True)
-    classification = Column(String, index=True)
-
-# Create database tables
-Base.metadata.create_all(bind=engine)
-
-# Pydantic model for request body
-class UserData(BaseModel):
-    name: str
-    mobile_number: str
-    whatsapp_number: str
-    email: str
-    locality: str
-    classification: str = None
-
-# Endpoint to submit user data
-@app.post("/submit_user_data/")
-async def submit_user_data(
-    name: str = Form(...),
-    mobile_number: str = Form(...),
-    whatsapp_number: str = Form(...),
-    email: str = Form(...),
-    locality: str = Form(...),
-):
-    db = SessionLocal()
-    try:
-        user_data = UserData(name=name, mobile_number=mobile_number, whatsapp_number=whatsapp_number, email=email, locality=locality)
-    except ValidationError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    data = user_data.dict()
-    sql_query = text(
-        """
-        INSERT INTO users (name, mobile_number, whatsapp_number, email, locality, classification) 
-        VALUES (:name, :mobile_number, :whatsapp_number, :email, :locality, :classification)
-    """
+# Update Google Sheet with user data
+def update_google_sheet(user_data):
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(
+        "service_accounts.json", scope
     )
-    db.execute(sql_query, data)
-    db.commit()
+    gc = gspread.authorize(credentials)
+    sh = gc.open("Manohar")  # Replace with your Google Sheet name
+    worksheet = sh.get_worksheet(0)
+      # Clear existing data
+    worksheet.append_rows(user_data.values.tolist())  # Append new data
 
-    # Get the newly inserted user
-    user = db.query(User).filter_by(email=email).first()
-
-    return {"message": "User data submitted successfully!", "user_id": user.id}
-
-# Endpoint to classify users
-@app.post("/classify_users/")
-async def classify_users(user_id: int = Form(...), classification: str = Form(...)):
-    db = SessionLocal()
-    user = db.query(User).filter_by(id=user_id).first()
-    user.classification = classification.upper()
-    db.commit()
-    return {"message": "User classification updated successfully!"}
-
-# Home page with GUI
+# Home page
 @app.get("/", response_class=HTMLResponse)
-async def home():
+async def home(request: Request):
+    current_date, current_time = get_current_datetime()
     return """
+    <!DOCTYPE html>
     <html>
     <head>
-        <title>User Data Submission</title>
+        <title>Shopkeeper Messaging Portal</title>
         <style>
             body {
                 font-family: Arial, sans-serif;
-                margin: 0;
-                padding: 0;
-                background-color: #f2f2f2;
-            }
-            .container {
-                width: 600px;
-                margin: 50px auto;
-                background-color: #fff;
-                padding: 20px;
-                border-radius: 8px;
-                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                font-size: 18px;
             }
             h1 {
-                text-align: center;
+                font-size: 36px;
+                color: #333;
             }
-            form {
-                margin-bottom: 20px;
-            }
-            label {
-                display: block;
-                margin-bottom: 5px;
+            .container {
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
             }
             input[type="text"], select {
-                width: calc(100% - 22px);
+                width: 100%;
                 padding: 10px;
-                margin-bottom: 10px;
+                font-size: 18px;
+                margin-bottom: 15px;
                 border: 1px solid #ccc;
-                border-radius: 4px;
+                border-radius: 5px;
             }
             input[type="submit"] {
                 width: 100%;
-                padding: 10px 0;
-                background-color: #4CAF50;
-                color: white;
+                padding: 10px;
+                font-size: 20px;
+                background-color: #007bff;
+                color: #fff;
                 border: none;
-                border-radius: 4px;
+                border-radius: 5px;
                 cursor: pointer;
             }
             input[type="submit"]:hover {
-                background-color: #45a049;
+                background-color: #0056b3;
             }
         </style>
     </head>
     <body>
         <div class="container">
-            <h1>User Data Submission</h1>
-            <form id="user-form" action="/submit_user_data/" method="post">
-                <label for="name">Name:</label>
-                <input type="text" id="name" name="name" required><br>
-                <label for="mobile_number">Mobile Number:</label>
-                <input type="text" id="mobile_number" name="mobile_number" required><br>
-                <label for="whatsapp_number">WhatsApp Number:</label>
-                <input type="text" id="whatsapp_number" name="whatsapp_number" required><br>
-                <label for="email">Email:</label>
-                <input type="text" id="email" name="email" required><br>
-                <label for="locality">Locality:</label>
-                <input type="text" id="locality" name="locality" required><br>
+            <h1>Shopkeeper Messaging Portal</h1>
+            <p>Today's Date: """ + str(current_date) + """</p>
+            <p>Current Time: """ + str(current_time) + """</p>
+
+            <form action="/classify" method="post">
+                <h2>User Information</h2>
+                <input type="text" name="name" placeholder="Name"><br>
+                <input type="text" name="mobile_number" placeholder="Mobile Number"><br>
+                <input type="text" name="whatsapp_number" placeholder="WhatsApp Number"><br>
+                <input type="text" name="email" placeholder="Email"><br>
+                <input type="text" name="locality" placeholder="Locality"><br>
                 <input type="submit" value="Submit">
             </form>
-            <div id="classification-container" style="display: none;">
-                <form id="classification-form" action="/classify_users/" method="post">
-                    <input type="hidden" id="user_id" name="user_id">
-                    <label for="classification">Classify User (A, B, C):</label>
-                    <input type="text" id="classification" name="classification" required><br>
-                    <input type="submit" value="Classify">
-                </form>
         </div>
     </body>
     </html>
     """
 
-if __name__ == '__main__':
-    import uvicorn
-    uvicorn.run(app)
+# Classification page
+@app.post("/classify", response_class=HTMLResponse)
+async def classify(request: Request, name: str = Form(...), mobile_number: str = Form(...), whatsapp_number: str = Form(...), email: str = Form(...), locality: str = Form(...)):
+    current_date, current_time = get_current_datetime()
+    user_data = pd.DataFrame({
+        "Name": [name],
+        "Mobile Number": [mobile_number],
+        "WhatsApp Number": [whatsapp_number],
+        "Email": [email],
+        "Locality": [locality]
+    })
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Shopkeeper Messaging Portal</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                font-size: 18px;
+            }
+            h1 {
+                font-size: 36px;
+                color: #333;
+            }
+            .container {
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+            input[type="text"], select {
+                width: 100%;
+                padding: 10px;
+                font-size: 18px;
+                margin-bottom: 15px;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+            }
+            input[type="submit"] {
+                width: 100%;
+                padding: 10px;
+                font-size: 20px;
+                background-color: #007bff;
+                color: #fff;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+            }
+            input[type="submit"]:hover {
+                background-color: #0056b3;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Shopkeeper Messaging Portal</h1>
+            <p>Today's Date: """ + str(current_date) + """</p>
+            <p>Current Time: """ + str(current_time) + """</p>
+            <h2>Classify User</h2>
+            <p>Please classify the user:</p>
+            <form action="/" method="post">
+                <input type="hidden" name="name" value='""" + name + """'>
+                <input type="hidden" name="mobile_number" value='""" + mobile_number + """'>
+                <input type="hidden" name="whatsapp_number" value='""" + whatsapp_number + """'>
+                <input type="hidden" name="email" value='""" + email + """'>
+                <input type="hidden" name="locality" value='""" + locality + """'>
+                <select name="classification">
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                </select><br><br>
+                <input type="submit" value="Submit">
+            </form>
+        </div>
+    </body>
+    </html>
+    """
+
+# Process final form submission
+@app.post("/", response_class=HTMLResponse)
+async def submit_form(request: Request, name: str = Form(...), mobile_number: str = Form(...), whatsapp_number: str = Form(...), email: str = Form(...), locality: str = Form(...), classification: str = Form(...)):
+    current_date, current_time = get_current_datetime()
+    user_data = pd.DataFrame({
+        "Name": [name],
+        "Mobile Number": [mobile_number],
+        "WhatsApp Number": [whatsapp_number],
+        "Email": [email],
+        "Locality": [locality],
+        "Classification": [classification]
+    })
+    update_google_sheet(user_data)
+    return RedirectResponse(url="/", status_code=303)
