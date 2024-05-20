@@ -22,7 +22,7 @@ def update_google_sheet(user_data):
         "https://www.googleapis.com/auth/drive",
     ]
     credentials = ServiceAccountCredentials.from_json_keyfile_name(
-        "service_accounts.json", scope
+        "/etc/secrets/service_accounts.json", scope
     )
     gc = gspread.authorize(credentials)
     sh = gc.open("Manohar")  # Replace with your Google Sheet name
